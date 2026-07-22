@@ -24,6 +24,16 @@ if [[ "$ACTUAL_TENANT" != "$EXPECTED_TENANT" ]]; then
 fi
 
 MANAGED_BY=$(az account show --subscription "$EXPECTED_SUB" --query "managedByTenants[].tenantId" -o tsv 2>/dev/null || echo "")
+
+if [[ "$ACTUAL_TENANT" == "$MSP_TENANT_ID" ]]; then
+  # Same-tenant scenario: this subscription lives directly in the MSSP's own
+  # tenant (lab/canary testing, or a customer subscription under this same
+  # tenant). Direct RBAC role assignments are the legitimate access mechanism
+  # here, not Lighthouse - so no managedByTenants check is required.
+  echo "OK: '$CUSTOMER' -> subscription $EXPECTED_SUB is in the MSSP's own tenant $MSP_TENANT_ID (direct RBAC scenario, not Lighthouse)."
+  exit 0
+fi
+
 if ! echo "$MANAGED_BY" | grep -qi "$MSP_TENANT_ID"; then
   echo "::error::Subscription $EXPECTED_SUB is not Lighthouse-delegated to management tenant $MSP_TENANT_ID (managedByTenants: [$MANAGED_BY]). This identity may have access for an unrelated/unexpected reason. Refusing to deploy."
   exit 1
