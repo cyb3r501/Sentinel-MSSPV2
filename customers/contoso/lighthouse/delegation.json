@@ -1,0 +1,64 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "mspOfferName": {
+      "type": "string",
+      "defaultValue": "MS Cloud Solutions - Managed Sentinel"
+    },
+    "mspOfferDescription": {
+      "type": "string",
+      "defaultValue": "Delegated access for MS Cloud Solutions to deploy and manage Microsoft Sentinel content (analytics rules, playbooks, watchlists, workbooks, automation rules) in this subscription."
+    },
+    "managedByTenantId": {
+      "type": "string",
+      "metadata": { "description": "Your MSSP management tenant ID - the one your GitHub Actions OIDC identity lives in." }
+    },
+    "authorizations": {
+      "type": "array",
+      "defaultValue": [
+        {
+          "principalId": "PLACEHOLDER_MSSP_SERVICE_PRINCIPAL_OBJECT_ID",
+          "principalIdDisplayName": "MS Cloud Solutions - Sentinel Deploy Automation",
+          "roleDefinitionId": "ab8e14d6-4a74-4a29-9ba8-549422addade"
+        },
+        {
+          "principalId": "PLACEHOLDER_MSSP_SERVICE_PRINCIPAL_OBJECT_ID",
+          "principalIdDisplayName": "MS Cloud Solutions - Sentinel Deploy Automation",
+          "roleDefinitionId": "8d289c81-5878-46d4-8554-54e1e3d8b5cb"
+        }
+      ],
+      "metadata": {
+        "description": "ab8e14d6... = Microsoft Sentinel Contributor. 8d289c81... = Logic App Contributor. Both scoped to only what the pipeline needs - never grant Owner/Contributor at subscription scope for an MSSP delegation."
+      }
+    }
+  },
+  "variables": {
+    "mspRegistrationName": "[guid(parameters('mspOfferName'))]",
+    "mspAssignmentName": "[guid(parameters('mspOfferName'), subscription().subscriptionId)]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ManagedServices/registrationDefinitions",
+      "apiVersion": "2022-10-01",
+      "name": "[variables('mspRegistrationName')]",
+      "properties": {
+        "registrationDefinitionName": "[parameters('mspOfferName')]",
+        "description": "[parameters('mspOfferDescription')]",
+        "managedByTenantId": "[parameters('managedByTenantId')]",
+        "authorizations": "[parameters('authorizations')]"
+      }
+    },
+    {
+      "type": "Microsoft.ManagedServices/registrationAssignments",
+      "apiVersion": "2022-10-01",
+      "name": "[variables('mspAssignmentName')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedServices/registrationDefinitions', variables('mspRegistrationName'))]"
+      ],
+      "properties": {
+        "registrationDefinitionId": "[resourceId('Microsoft.ManagedServices/registrationDefinitions', variables('mspRegistrationName'))]"
+      }
+    }
+  ]
+}

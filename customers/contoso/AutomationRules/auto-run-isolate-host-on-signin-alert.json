@@ -1,0 +1,33 @@
+{
+  "name": "auto-run-isolate-host-on-signin-alert",
+  "apiVersion": "2023-11-01",
+  "properties": {
+    "displayName": "Run isolate-host playbook on impossible-travel alerts",
+    "order": 1,
+    "triggeringLogic": {
+      "isEnabled": true,
+      "triggersOn": "Incidents",
+      "triggersWhen": "Created",
+      "conditions": [
+        {
+          "conditionType": "Property",
+          "conditionProperties": {
+            "propertyName": "IncidentRelatedAnalyticRuleIds",
+            "operator": "Contains",
+            "propertyValues": ["suspicious-signin-impossible-travel"]
+          }
+        }
+      ]
+    },
+    "actions": [
+      {
+        "order": 1,
+        "actionType": "RunPlaybook",
+        "actionConfiguration": {
+          "logicAppResourceId": "PLACEHOLDER_SET_BY_PIPELINE_AFTER_PLAYBOOK_DEPLOY",
+          "tenantId": "22222222-2222-2222-2222-222222222222"
+        }
+      }
+    ]
+  }
+}

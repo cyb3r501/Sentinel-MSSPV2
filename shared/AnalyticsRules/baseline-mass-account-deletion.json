@@ -1,0 +1,20 @@
+{
+  "contentId": "baseline-mass-account-deletion",
+  "version": 3,
+  "kind": "Scheduled",
+  "name": "baseline-mass-account-deletion",
+  "apiVersion": "2023-11-01",
+  "properties": {
+    "displayName": "Baseline - mass account deletion",
+    "description": "Common detection rolled out via the overlay model - see subscriptions.json in each customer folder. Edit here; every subscribed customer gets it on next deploy. Do not copy-paste into a customer folder.",
+    "severity": "High",
+    "enabled": true,
+    "query": "AuditLogs\n| where OperationName == \"Delete user\"\n| summarize Count = count() by bin(TimeGenerated, 15m)\n| where Count > 5",
+    "queryFrequency": "PT15M",
+    "queryPeriod": "PT15M",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "tactics": ["Impact"],
+    "techniques": ["T1531"]
+  }
+}

@@ -1,0 +1,78 @@
+name: Promote Content to Customers
+
+# Deliberately manual only - promotion out of canary/shared into real customer
+# folders should never be automatic. This opens a PR for review, it does not
+# deploy directly, even though the person running it may have deploy rights.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_path:
+        description: 'Path to promote, e.g. shared/AnalyticsRules/new-rule.json or customers/_canary/AnalyticsRules/new-rule.json'
+        required: true
+      target_customers:
+        description: 'Comma-separated customer folder names to promote to, e.g. contoso,fabrikam'
+        required: true
+      burn_in_note:
+        description: 'How long / how this was validated in canary (goes in the PR description as evidence)'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create promotion branch and copy content
+        id: promote
+        run: |
+          set -euo pipefail
+          BRANCH="promote/$(basename "${{ github.event.inputs.source_path }}")-$(date +%s)"
+          git checkout -b "$BRANCH"
+
+          IFS=',' read -ra CUSTOMERS <<< "${{ github.event.inputs.target_customers }}"
+          SRC="${{ github.event.inputs.source_path }}"
+          CONTENT_TYPE=$(echo "$SRC" | cut -d'/' -f2)
+          FILENAME=$(basename "$SRC")
+
+          for CUSTOMER in "${CUSTOMERS[@]}"; do
+            DEST_DIR="customers/${CUSTOMER}/${CONTENT_TYPE}"
+            if [[ ! -d "customers/${CUSTOMER}" ]]; then
+              echo "::error::customers/${CUSTOMER} does not exist, skipping"
+              continue
+            fi
+            mkdir -p "$DEST_DIR"
+            cp "$SRC" "$DEST_DIR/$FILENAME"
+            echo "Copied to $DEST_DIR/$FILENAME"
+          done
+
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push
+        run: |
+          git config user.name "sentinel-ci-bot"
+          git config user.email "sentinel-ci-bot@users.noreply.github.com"
+          git add customers/
+          git commit -m "promote: ${{ github.event.inputs.source_path }} -> ${{ github.event.inputs.target_customers }}"
+          git push origin "${{ steps.promote.outputs.branch }}"
+
+      - name: Open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "${{ steps.promote.outputs.branch }}" \
+            --title "Promote ${{ github.event.inputs.source_path }} to ${{ github.event.inputs.target_customers }}" \
+            --body "**Source:** \`${{ github.event.inputs.source_path }}\`
+          **Targets:** ${{ github.event.inputs.target_customers }}
+          **Requested by:** @${{ github.actor }}
+          **Burn-in evidence:** ${{ github.event.inputs.burn_in_note }}
+
+          This PR was opened by the promotion workflow, not committed directly.
+          It still goes through \`validate-pr.yml\` (JSON checks + what-if) and
+          normal review before merge triggers a real deploy."

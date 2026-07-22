@@ -1,0 +1,7 @@
+{
+  "contentId": "baseline-mass-account-deletion",
+  "properties": {
+    "triggerThreshold": 10,
+    "description": "OVERRIDE of shared baseline: Contoso's IT team runs legitimate bulk offboarding on the 1st of each month, so threshold raised from default to reduce false positives. See shared/AnalyticsRules/baseline-mass-account-deletion.json for the original."
+  }
+}

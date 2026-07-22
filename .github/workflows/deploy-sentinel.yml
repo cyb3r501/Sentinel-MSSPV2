@@ -1,0 +1,244 @@
+name: Deploy Sentinel Content
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'customers/**'
+      - 'shared/**'
+  workflow_dispatch:
+    inputs:
+      customer:
+        description: 'Customer folder name under customers/ (full redeploy of that customer only)'
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  detect-changes:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Get changed files (customers + shared)
+        id: changed
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            customers/**
+            shared/**
+          include_all_old_new_renamed_files: true
+
+      - name: Build deployment matrix
+        id: set-matrix
+        env:
+          ADDED_MODIFIED: ${{ steps.changed.outputs.added_modified_files }}
+          DELETED: ${{ steps.changed.outputs.deleted_files }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, subprocess
+
+          def customers_for_shared_file(f):
+              try:
+                  out = subprocess.run(
+                      ["python3", "scripts/build-effective-content.py", "--changed-shared-file", f],
+                      capture_output=True, text=True, check=True
+                  ).stdout.strip()
+                  return json.loads(out).get("affectedCustomers", [])
+              except Exception as e:
+                  print(f"::warning::Could not resolve affected customers for {f}: {e}")
+                  return []
+
+          native_entries = []
+          effective_customers = set()
+
+          def handle(files, action):
+              for f in files.split():
+                  parts = f.split('/')
+                  if parts[0] == 'shared' and f.endswith('.json'):
+                      for c in customers_for_shared_file(f):
+                          effective_customers.add(c)
+                      continue
+                  if parts[0] != 'customers' or len(parts) < 3:
+                      continue
+                  customer = parts[1]
+                  if customer == '_template':
+                      continue
+                  if parts[2] == 'subscriptions.json':
+                      effective_customers.add(customer)
+                      continue
+                  if 'overrides' in parts:
+                      effective_customers.add(customer)
+                      continue
+                  if len(parts) < 4:
+                      continue
+                  content_type = parts[2]
+                  native_entries.append({
+                      "kind": "native", "customer": customer, "content_type": content_type,
+                      "file": f, "action": action
+                  })
+
+          handle(os.environ.get('ADDED_MODIFIED', ''), 'deploy')
+          handle(os.environ.get('DELETED', ''), 'delete')
+
+          effective_entries = [{"kind": "effective", "customer": c, "content_type": "effective", "file": "", "action": "deploy"} for c in effective_customers]
+
+          matrix = {"include": native_entries + effective_entries}
+          print(f"::notice::Matrix has {len(matrix['include'])} entries ({len(native_entries)} native, {len(effective_entries)} effective-rebuild)")
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f"matrix={json.dumps(matrix)}\n")
+          EOF
+
+  deploy:
+    needs: detect-changes
+    if: github.event_name == 'push' && needs.detect-changes.outputs.matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+    environment: ${{ matrix.customer }}
+    concurrency:
+      group: sentinel-deploy-${{ matrix.customer }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load customer config
+        id: cfg
+        run: |
+          CFG="customers/${{ matrix.customer }}/config.json"
+          if [[ ! -f "$CFG" ]]; then
+            echo "::error::No config.json found for customer '${{ matrix.customer }}'"
+            exit 1
+          fi
+          echo "rg=$(jq -r .resourceGroup "$CFG")" >> "$GITHUB_OUTPUT"
+          echo "ws=$(jq -r .workspaceName "$CFG")" >> "$GITHUB_OUTPUT"
+          echo "subId=$(jq -r .subscriptionId "$CFG")" >> "$GITHUB_OUTPUT"
+
+      - name: Azure Login (OIDC - MSSP management identity)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Verify tenant scope before touching anything
+        run: |
+          chmod +x scripts/*.sh
+          bash scripts/verify-tenant-scope.sh "customers/${{ matrix.customer }}/config.json" "${{ secrets.AZURE_TENANT_ID }}"
+
+      - name: Set target subscription
+        run: az account set --subscription "${{ steps.cfg.outputs.subId }}"
+
+      - name: Deploy or delete content
+        id: deploy_step
+        run: |
+          set -e
+          chmod +x scripts/*.sh
+          if [[ "${{ matrix.kind }}" == "effective" ]]; then
+            python3 scripts/build-effective-content.py --customer "${{ matrix.customer }}"
+            for f in customers/${{ matrix.customer }}/.effective/AnalyticsRules/*.json; do
+              [[ -e "$f" ]] && bash scripts/deploy-analytics-rule.sh "$f" "${{ steps.cfg.outputs.rg }}" "${{ steps.cfg.outputs.ws }}"
+            done
+            for f in customers/${{ matrix.customer }}/.effective/AutomationRules/*.json; do
+              [[ -e "$f" ]] && bash scripts/deploy-automation-rule.sh "$f" "${{ steps.cfg.outputs.rg }}" "${{ steps.cfg.outputs.ws }}"
+            done
+            exit 0
+          fi
+
+          if [[ "${{ matrix.action }}" == "delete" ]]; then
+            bash scripts/delete-content.sh "${{ matrix.content_type }}" "${{ matrix.file }}" "${{ steps.cfg.outputs.rg }}" "${{ steps.cfg.outputs.ws }}"
+          else
+            case "${{ matrix.content_type }}" in
+              AnalyticsRules)   bash scripts/deploy-analytics-rule.sh   "${{ matrix.file }}" "${{ steps.cfg.outputs.rg }}" "${{ steps.cfg.outputs.ws }}" ;;
+              AutomationRules)  bash scripts/deploy-automation-rule.sh  "${{ matrix.file }}" "${{ steps.cfg.outputs.rg }}" "${{ steps.cfg.outputs.ws }}" ;;
+              Playbooks)        bash scripts/deploy-playbook.sh         "${{ matrix.file }}" "${{ steps.cfg.outputs.rg }}" ;;
+              Watchlists)       [[ "${{ matrix.file }}" == *.json ]] && bash scripts/deploy-watchlist.sh "${{ matrix.file }}" "${{ steps.cfg.outputs.rg }}" "${{ steps.cfg.outputs.ws }}" || echo "CSV-only change, handled alongside its .json" ;;
+              Workbooks)        [[ "${{ matrix.file }}" == *.json && "${{ matrix.file }}" != *.meta.json ]] && bash scripts/deploy-workbook.sh "${{ matrix.file }}" "${{ steps.cfg.outputs.rg }}" || echo "meta-only change, handled alongside its workbook json" ;;
+              *) echo "::warning::Unknown content type ${{ matrix.content_type }}, skipping" ;;
+            esac
+          fi
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          bash scripts/notify-failure.sh "${{ matrix.customer }}" "${{ matrix.content_type }}" "${{ matrix.file }}" "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+  manual-full-redeploy:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.customer }}
+    concurrency:
+      group: sentinel-deploy-${{ github.event.inputs.customer }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load customer config
+        id: cfg
+        run: |
+          CFG="customers/${{ github.event.inputs.customer }}/config.json"
+          if [[ ! -f "$CFG" ]]; then
+            echo "::error::No config.json found for customer '${{ github.event.inputs.customer }}'"
+            exit 1
+          fi
+          echo "rg=$(jq -r .resourceGroup "$CFG")" >> "$GITHUB_OUTPUT"
+          echo "ws=$(jq -r .workspaceName "$CFG")" >> "$GITHUB_OUTPUT"
+          echo "subId=$(jq -r .subscriptionId "$CFG")" >> "$GITHUB_OUTPUT"
+
+      - name: Azure Login (OIDC - MSSP management identity)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Verify tenant scope before touching anything
+        run: |
+          chmod +x scripts/*.sh
+          bash scripts/verify-tenant-scope.sh "customers/${{ github.event.inputs.customer }}/config.json" "${{ secrets.AZURE_TENANT_ID }}"
+
+      - name: Set target subscription
+        run: az account set --subscription "${{ steps.cfg.outputs.subId }}"
+
+      - name: Rebuild effective content from shared baselines
+        run: python3 scripts/build-effective-content.py --customer "${{ github.event.inputs.customer }}"
+
+      - name: Redeploy every file for this customer (native + effective)
+        run: |
+          chmod +x scripts/*.sh
+          BASE="customers/${{ github.event.inputs.customer }}"
+          for f in "$BASE"/AnalyticsRules/*.json "$BASE"/.effective/AnalyticsRules/*.json; do
+            [[ -e "$f" ]] && bash scripts/deploy-analytics-rule.sh "$f" "${{ steps.cfg.outputs.rg }}" "${{ steps.cfg.outputs.ws }}"
+          done
+          for d in "$BASE"/Playbooks/*/; do
+            [[ -e "${d}azuredeploy.json" ]] && bash scripts/deploy-playbook.sh "${d}azuredeploy.json" "${{ steps.cfg.outputs.rg }}"
+          done
+          for f in "$BASE"/Watchlists/*.json; do
+            [[ -e "$f" ]] && bash scripts/deploy-watchlist.sh "$f" "${{ steps.cfg.outputs.rg }}" "${{ steps.cfg.outputs.ws }}"
+          done
+          for f in "$BASE"/Workbooks/*.json; do
+            [[ "$f" == *.meta.json ]] && continue
+            [[ -e "$f" ]] && bash scripts/deploy-workbook.sh "$f" "${{ steps.cfg.outputs.rg }}"
+          done
+          for f in "$BASE"/AutomationRules/*.json "$BASE"/.effective/AutomationRules/*.json; do
+            [[ -e "$f" ]] && bash scripts/deploy-automation-rule.sh "$f" "${{ steps.cfg.outputs.rg }}" "${{ steps.cfg.outputs.ws }}"
+          done
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          bash scripts/notify-failure.sh "${{ github.event.inputs.customer }}" "full-redeploy" "manual-trigger" "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

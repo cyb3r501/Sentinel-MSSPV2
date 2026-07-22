@@ -1,0 +1,12 @@
+{
+  "name": "high-value-assets",
+  "apiVersion": "2023-11-01",
+  "properties": {
+    "displayName": "High Value Assets",
+    "description": "Servers, admin accounts, and automation service accounts requiring elevated monitoring or exclusion from generic alerting.",
+    "provider": "GitHub-CI",
+    "source": "Local file",
+    "itemsSearchKey": "AssetName",
+    "numberOfLinesToSkip": 0
+  }
+}

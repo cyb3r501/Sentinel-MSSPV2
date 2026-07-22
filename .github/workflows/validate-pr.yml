@@ -1,0 +1,96 @@
+name: Validate Sentinel Content (PR)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'customers/**'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Get changed files
+        id: changed
+        uses: tj-actions/changed-files@v44
+        with:
+          path: customers
+
+      - name: Build validation matrix
+        id: set-matrix
+        env:
+          FILES: ${{ steps.changed.outputs.all_changed_files }}
+        run: |
+          python3 - <<'EOF'
+          import json, os
+          entries = []
+          for f in os.environ.get('FILES', '').split():
+              parts = f.split('/')
+              if len(parts) < 4:
+                  continue
+              _, customer, content_type = parts[0], parts[1], parts[2]
+              if customer == '_template':
+                  continue
+              entries.append({"customer": customer, "content_type": content_type, "file": f})
+          matrix = {"include": entries}
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f"matrix={json.dumps(matrix)}\n")
+          EOF
+
+  validate:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+    environment: ${{ matrix.customer }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JSON / CSV syntax check
+        run: |
+          chmod +x scripts/*.sh
+          bash scripts/validate-json.sh "${{ matrix.file }}"
+
+      - name: Load customer config
+        id: cfg
+        run: |
+          CFG="customers/${{ matrix.customer }}/config.json"
+          echo "rg=$(jq -r .resourceGroup "$CFG")" >> "$GITHUB_OUTPUT"
+          echo "ws=$(jq -r .workspaceName "$CFG")" >> "$GITHUB_OUTPUT"
+          echo "subId=$(jq -r .subscriptionId "$CFG")" >> "$GITHUB_OUTPUT"
+
+      - name: Azure Login (OIDC - MSSP management identity)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Verify tenant scope before validating against a real workspace
+        run: |
+          chmod +x scripts/*.sh
+          bash scripts/verify-tenant-scope.sh "customers/${{ matrix.customer }}/config.json" "${{ secrets.AZURE_TENANT_ID }}"
+
+      - name: Set target subscription
+        run: az account set --subscription "${{ steps.cfg.outputs.subId }}"
+
+      - name: What-if / validate against real workspace (Playbooks only - ARM deployable)
+        if: matrix.content_type == 'Playbooks' && endsWith(matrix.file, 'azuredeploy.json')
+        run: bash scripts/deploy-playbook.sh "${{ matrix.file }}" "${{ steps.cfg.outputs.rg }}" whatif
+
+      - name: Dry-run note for non-ARM content types
+        if: matrix.content_type != 'Playbooks'
+        run: echo "::notice::${{ matrix.content_type }} deploys via direct REST PUT - syntax validated above; no destructive what-if available for this content type."

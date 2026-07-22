@@ -1,0 +1,37 @@
+{
+  "kind": "Scheduled",
+  "name": "suspicious-signin-impossible-travel",
+  "apiVersion": "2023-11-01",
+  "properties": {
+    "displayName": "Suspicious sign-in - impossible travel",
+    "description": "Flags sign-ins from the same account occurring from two geographically distant locations within a time window too short for real travel.",
+    "severity": "Medium",
+    "enabled": true,
+    "query": "SigninLogs\n| where ResultType == 0\n| summarize Locations = make_set(Location), Count = count() by UserPrincipalName, bin(TimeGenerated, 1h)\n| where array_length(Locations) > 1",
+    "queryFrequency": "PT1H",
+    "queryPeriod": "PT1H",
+    "triggerOperator": "GreaterThan",
+    "triggerThreshold": 0,
+    "suppressionDuration": "PT1H",
+    "suppressionEnabled": false,
+    "tactics": ["InitialAccess"],
+    "techniques": ["T1078"],
+    "entityMappings": [
+      {
+        "entityType": "Account",
+        "fieldMappings": [
+          { "identifier": "FullName", "columnName": "UserPrincipalName" }
+        ]
+      }
+    ],
+    "incidentConfiguration": {
+      "createIncident": true,
+      "groupingConfiguration": {
+        "enabled": true,
+        "reopenClosedIncident": false,
+        "lookbackDuration": "PT5H",
+        "matchingMethod": "AllEntities"
+      }
+    }
+  }
+}

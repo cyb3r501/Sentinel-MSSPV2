@@ -1,0 +1,37 @@
+name: Generate Compliance Reports
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # every Monday 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      customer:
+        description: 'Leave blank for all customers'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history required for accurate per-file logs
+
+      - name: Generate reports
+        run: |
+          if [[ -n "${{ github.event.inputs.customer }}" ]]; then
+            python3 scripts/generate-deployment-report.py --customer "${{ github.event.inputs.customer }}"
+          else
+            python3 scripts/generate-deployment-report.py
+          fi
+
+      - name: Commit updated reports
+        run: |
+          git config user.name "sentinel-ci-bot"
+          git config user.email "sentinel-ci-bot@users.noreply.github.com"
+          git add reports/
+          git diff --cached --quiet || git commit -m "chore: refresh compliance reports [skip ci]"
+          git push

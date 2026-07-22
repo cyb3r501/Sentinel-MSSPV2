@@ -1,0 +1,9 @@
+{
+  "customerName": "_canary",
+  "subscriptionId": "REPLACE_WITH_YOUR_INTERNAL_TEST_SUBSCRIPTION_ID",
+  "resourceGroup": "rg-canary-soc",
+  "workspaceName": "canary-sentinel",
+  "tenantId": "REPLACE_WITH_YOUR_MSSP_MANAGEMENT_TENANT_ID",
+  "environmentName": "_canary",
+  "comment": "This is YOUR lab/test tenant, not a customer. It does not need Lighthouse delegation since it's already in your own tenant. New shared content and new customer content should land here first and burn in before being promoted to real customer folders."
+}

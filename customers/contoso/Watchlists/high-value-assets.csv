@@ -1,0 +1,4 @@
+AssetName,AssetType,Owner,Criticality
+DC01,Server,IT-Ops,Critical
+svc-backup-automation,ServiceAccount,IT-Ops,High
+fin-admin-jsmith,AdminAccount,Finance,Critical

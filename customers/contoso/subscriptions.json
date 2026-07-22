@@ -1,0 +1,10 @@
+{
+  "comment": "Lists which shared/ content this customer inherits. 'inherit' pulls the baseline as-is. 'override' pulls the baseline then deep-merges the file at overridePath on top - the customer gets a customized version but it's still traceable to the shared baseline.",
+  "AnalyticsRules": [
+    {
+      "contentId": "baseline-mass-account-deletion",
+      "mode": "override",
+      "overridePath": "customers/contoso/AnalyticsRules/overrides/baseline-mass-account-deletion.json"
+    }
+  ]
+}

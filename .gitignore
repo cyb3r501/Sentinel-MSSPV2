@@ -1,0 +1,19 @@
+# Local/OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Never commit these
+*.pfx
+*.pem
+*secrets*.json
+.env
+local.settings.json
+
+# Generated at deploy time - never commit
+.effective/
+**/.effective/
+
+# Editor
+.vscode/
+.idea/

@@ -1,0 +1,8 @@
+{
+  "customerName": "REPLACE_ME",
+  "subscriptionId": "00000000-0000-0000-0000-000000000000",
+  "resourceGroup": "rg-REPLACE_ME-soc",
+  "workspaceName": "REPLACE_ME-sentinel",
+  "tenantId": "00000000-0000-0000-0000-000000000000",
+  "environmentName": "REPLACE_ME"
+}

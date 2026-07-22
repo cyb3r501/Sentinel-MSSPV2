@@ -1,0 +1,15 @@
+# Default: any change requires a core maintainer
+*                                   @cyb3r501
+
+# Per-customer review scoping - replace with the actual engineer(s)
+# responsible for each account. This prevents Engineer A from approving
+# (even accidentally) a change to Engineer B's customer.
+/customers/contoso/                @cyb3r501
+/customers/_canary/                @cyb3r501
+
+# Shared baseline content affects every customer - keep this reviewer set small
+/shared/                           @cyb3r501
+
+# Pipeline/workflow changes are the highest-blast-radius files in this repo
+/.github/workflows/                @cyb3r501
+/scripts/                          @cyb3r501
