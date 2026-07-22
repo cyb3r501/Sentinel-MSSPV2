@@ -1,9 +1,9 @@
 {
   "kind": "Scheduled",
-  "name": "ET-CORP-Suspicious-signin-impossible-travel",
+  "name": "Suspicious-signin-impossible-travel",
   "apiVersion": "2023-11-01",
   "properties": {
-    "displayName": "ET- Suspicious sign-in - impossible travel",
+    "displayName": "ET-CORP-Suspicious sign-in - impossible travel",
     "description": "Flags sign-ins from the same account -- occurring from two geographically distant locations within a time window too short for real travel.",
     "severity": "Low",
     "enabled": true,
