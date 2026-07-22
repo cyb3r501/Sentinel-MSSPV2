@@ -1,6 +1,6 @@
 {
   "kind": "Scheduled",
-  "name": "suspicious-signin-impossible-travel",
+  "name": "ET-CORP-Suspicious-signin-impossible-travel",
   "apiVersion": "2023-11-01",
   "properties": {
     "displayName": "Suspicious sign-in - impossible travel",
