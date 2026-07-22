@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has_changes: ${{ steps.set-matrix.outputs.has_changes }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -91,14 +92,16 @@ jobs:
           effective_entries = [{"kind": "effective", "customer": c, "content_type": "effective", "file": "", "action": "deploy"} for c in effective_customers]
 
           matrix = {"include": native_entries + effective_entries}
+          has_changes = "true" if matrix["include"] else "false"
           print(f"::notice::Matrix has {len(matrix['include'])} entries ({len(native_entries)} native, {len(effective_entries)} effective-rebuild)")
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
               out.write(f"matrix={json.dumps(matrix)}\n")
+              out.write(f"has_changes={has_changes}\n")
           EOF
 
   deploy:
     needs: detect-changes
-    if: github.event_name == 'push' && needs.detect-changes.outputs.matrix != '{"include":[]}'
+    if: github.event_name == 'push' && needs.detect-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
