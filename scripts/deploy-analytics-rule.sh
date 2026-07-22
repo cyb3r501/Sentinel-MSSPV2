@@ -16,5 +16,8 @@ if [[ "$ACTION" == "delete" ]]; then
 fi
 
 echo "Deploying analytics rule '$RULE_ID' to workspace '$WS'..."
-az rest --method put --url "$URL" --body @"$FILE"
+TMP_BODY=$(mktemp)
+jq --arg name "$RULE_ID" '.name = $name' "$FILE" > "$TMP_BODY"
+az rest --method put --url "$URL" --body @"$TMP_BODY"
+rm -f "$TMP_BODY"
 echo "Done: $RULE_ID"
