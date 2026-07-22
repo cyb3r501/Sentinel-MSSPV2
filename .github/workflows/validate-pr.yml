@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has_changes: ${{ steps.set-matrix.outputs.has_changes }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,13 +45,15 @@ jobs:
                   continue
               entries.append({"customer": customer, "content_type": content_type, "file": f})
           matrix = {"include": entries}
+          has_changes = "true" if entries else "false"
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
               out.write(f"matrix={json.dumps(matrix)}\n")
+              out.write(f"has_changes={has_changes}\n")
           EOF
 
   validate:
     needs: detect-changes
-    if: needs.detect-changes.outputs.matrix != '{"include":[]}'
+    if: needs.detect-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
