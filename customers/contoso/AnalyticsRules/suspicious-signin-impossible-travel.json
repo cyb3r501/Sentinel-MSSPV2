@@ -5,7 +5,7 @@
   "properties": {
     "displayName": "Suspicious sign-in - impossible travel",
     "description": "Flags sign-ins from the same account occurring from two geographically distant locations within a time window too short for real travel.",
-    "severity": "Medium",
+    "severity": "Low",
     "enabled": true,
     "query": "SigninLogs\n| where ResultType == 0\n| summarize Locations = make_set(Location), Count = count() by UserPrincipalName, bin(TimeGenerated, 1h)\n| where array_length(Locations) > 1",
     "queryFrequency": "PT1H",
