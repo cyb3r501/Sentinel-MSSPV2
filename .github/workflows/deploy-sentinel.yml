@@ -40,7 +40,7 @@ jobs:
       - name: Build deployment matrix
         id: set-matrix
         env:
-          ADDED_MODIFIED: ${{ steps.changed.outputs.added_modified_files }}
+          ADDED_MODIFIED: ${{ steps.changed.outputs.all_changed_files }}
           DELETED: ${{ steps.changed.outputs.deleted_files }}
         run: |
           python3 - <<'EOF'
