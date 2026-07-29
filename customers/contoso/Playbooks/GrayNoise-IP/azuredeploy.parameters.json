@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "PlaybookName": {
+      "value": "GreyNoise-IP-Enrichment"
+    },
+    "GreyNoiseAPIKey": {
+      "value": "__GREYNOISE_API_KEY__"
+    },
+    "SentinelWorkspaceName": {
+      "value": "contoso-sentinel"
+    },
+    "UserName": {
+      "value": "__DEPLOYMENT_ACCOUNT__"
+    },
+    "WorkspaceID": {
+      "value": "__WORKSPACE_ID__"
+    },
+    "WorkspaceKey": {
+      "value": "__WORKSPACE_KEY__"
+    }
+  }
+}
