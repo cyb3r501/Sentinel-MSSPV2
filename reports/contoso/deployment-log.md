@@ -1,5 +1,5 @@
 # Deployment Log - contoso
-Generated: 2026-07-27T09:55:53.724000+00:00
+Generated: 2026-08-03T09:49:59.262693+00:00
 
 This log is derived from Git history and reflects every commit that
 touched this customer's Sentinel content. Each entry corresponds to a
@@ -27,6 +27,16 @@ GitHub Actions deployment run gated by that customer's Environment.
 
 | Date | Commit | Author | Change |
 |------|--------|--------|--------|
+| 2026-07-29T20:55:40+05:30 | `6f670aa0` | cyb3r501 | Add azuredeploy.parameters.json for GrayNoise IP playbook |
+| 2026-07-29T20:54:27+05:30 | `6eac3736` | cyb3r501 | Delete customers/contoso/Playbooks/GrayNoise-IP/Graynoise_IP_Enrichment.json |
+| 2026-07-29T20:53:48+05:30 | `b7a69972` | cyb3r501 | Update print statement from 'Hello' to 'Goodbye' |
+| 2026-07-29T20:52:46+05:30 | `266e322b` | cyb3r501 | Create Graynoise_IP_Enrichment.json |
+| 2026-07-29T20:51:41+05:30 | `0580d023` | cyb3r501 | Delete customers/contoso/Playbooks/GrayNoise-IP-Enrich/Graynoise-IP-Enrischment.json |
+| 2026-07-29T20:32:53+05:30 | `b05be97c` | cyb3r501 | Create Graynoise-IP-Enrischment.json |
+| 2026-07-29T20:30:47+05:30 | `65e34876` | cyb3r501 | Delete customers/contoso/Playbooks/GrayNoise-IP.json |
+| 2026-07-29T20:19:35+05:30 | `d79bb640` | cyb3r501 | Create GrayNoise-IP.json |
+| 2026-07-29T20:18:28+05:30 | `c4aab811` | cyb3r501 | Delete customers/contoso/Playbooks/isolate-host/Enrich-GreyNoise-IP.json |
+| 2026-07-29T12:59:30+05:30 | `ec488754` | cyb3r501 | Update fmt.Println output to 'Goodbye World' |
 | 2026-07-22T17:05:12+05:30 | `b3a86312` | cyb3r501 | Initial commit - MSSP multi-customer architecture |
 
 ## Watchlists
